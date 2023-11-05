@@ -76,7 +76,7 @@ pub mod queries {
     }
 
     #[derive(cynic::InlineFragments, Debug)]
-    enum IssueTimelineItems {
+    pub enum IssueTimelineItems {
         LabelledEvent(LabeledEvent),
         UnlabelledEvent(UnlabeledEvent),
         #[cynic(fallback)]
