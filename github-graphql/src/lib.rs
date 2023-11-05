@@ -20,12 +20,29 @@ pub mod queries {
         pub after: Option<String>,
     }
 
+    #[derive(cynic::QueryVariables, Debug, Clone)]
+    pub struct OldAndCloseableNeedsMcveIssuesArguments {
+        pub repository_owner: String,
+        pub repository_name: String,
+        pub months_considered_too_old: i32,
+    }
+
     #[derive(cynic::QueryFragment, Debug)]
     #[cynic(
         graphql_type = "Query",
         variables = "LeastRecentlyReviewedPullRequestsArguments"
     )]
     pub struct LeastRecentlyReviewedPullRequests {
+        #[arguments(owner: $repository_owner, name: $repository_name)]
+        pub repository: Option<Repository>,
+    }
+
+    #[derive(cynic::QueryFragment, Debug)]
+    #[cynic(
+        graphql_type = "Query",
+        variables = "LeastRecentlyReviewedPullRequestsArguments"
+    )]
+    pub struct OldAndCloseableNeedsMcveIssuesQuery {
         #[arguments(owner: $repository_owner, name: $repository_name)]
         pub repository: Option<Repository>,
     }

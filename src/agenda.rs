@@ -400,6 +400,11 @@ pub fn prioritization<'a>() -> Box<dyn Action> {
                         kind: QueryKind::List,
                         query: Arc::new(github::LeastRecentlyReviewedPullRequests),
                     },
+                    QueryMap {
+                        name: "old_and_closeable_needs_mcve_issues",
+                        kind: QueryKind::List,
+                        query: Arc::new(github::LeastRecentlyReviewedPullRequests),
+                    },
                 ],
             },
             Query {
