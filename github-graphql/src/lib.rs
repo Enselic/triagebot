@@ -5,6 +5,8 @@
 // This schema can be downloaded from https://docs.github.com/public/schema.docs.graphql
 #[cynic::schema_for_derives(file = "src/github.graphql", module = "schema")]
 pub mod queries {
+    use crate::schema::__fields::IssueTimelineItemsConnection;
+
     use super::schema;
 
     pub type Date = chrono::NaiveDate;
@@ -20,13 +22,6 @@ pub mod queries {
         pub after: Option<String>,
     }
 
-    #[derive(cynic::QueryVariables, Debug, Clone)]
-    pub struct OldAndCloseableNeedsMcveIssuesArguments {
-        pub repository_owner: String,
-        pub repository_name: String,
-        pub months_considered_too_old: i32,
-    }
-
     #[derive(cynic::QueryFragment, Debug)]
     #[cynic(
         graphql_type = "Query",
@@ -37,14 +32,62 @@ pub mod queries {
         pub repository: Option<Repository>,
     }
 
+    #[derive(cynic::QueryVariables, Debug, Clone)]
+    pub struct TooOldLabelArguments {
+        pub repository_owner: String,
+        pub repository_name: String,
+        pub label: String,
+        pub threshold_in_months: i32,
+        pub after: Option<String>,
+    }
+
     #[derive(cynic::QueryFragment, Debug)]
     #[cynic(
         graphql_type = "Query",
-        variables = "LeastRecentlyReviewedPullRequestsArguments"
+        variables = "TooOldLabelArguments"
     )]
-    pub struct OldAndCloseableNeedsMcveIssuesQuery {
+    pub struct TooOldLabelIssuesQuery {
         #[arguments(owner: $repository_owner, name: $repository_name)]
-        pub repository: Option<Repository>,
+        pub repository: Option<TooOldLabelRepository>,
+    }
+
+    #[derive(cynic::QueryFragment, Debug)]
+    #[cynic(
+        graphql_type = "Repository",
+        variables = "TooOldLabelArguments",
+    )]
+    pub struct TooOldLabelRepository {
+        #[arguments(
+            states: "OPEN",
+            first: 100,
+            after: $after,
+            labels: ["E-needs-mcve"],
+            orderBy: {direction: "ASC", field: "CREATED_AT"}
+        )]
+        pub issues: TooOldLabelIssueConnection,
+    }
+
+    #[derive(cynic::QueryFragment, Debug)]
+    #[cynic(graphql_type = "Issue")]
+    pub struct TooOldLabelIssue {
+        pub number: i32,
+        pub created_at: DateTime,
+        pub url: Uri,
+        pub title: String,
+        #[arguments(first = 250)]
+        pub labels: Option<LabelConnection>,
+        #[arguments(last = 1)]
+        pub comments: IssueCommentConnection,
+        #[arguments(last = 250)]
+        pub timeline_items: Option<IssueTimelineItemsConnection>,
+    }
+
+    #[derive(cynic::QueryFragment, Debug)]
+    pub struct IssueConnection {
+        pub total_count: i32,
+        pub page_info: PageInfo,
+        #[cynic(flatten)]
+        pub nodes: Vec<Issue>,
     }
 
     #[derive(cynic::QueryFragment, Debug)]

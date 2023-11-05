@@ -2298,9 +2298,9 @@ impl IssuesQuery for LeastRecentlyReviewedPullRequests {
     }
 }
 
-pub struct OldAndCloseableNeedsMcveIssues;
+pub struct TooOldNeedsMcveIssues;
 #[async_trait]
-impl IssuesQuery for OldAndCloseableNeedsMcveIssues {
+impl IssuesQuery for TooOldNeedsMcveIssues {
     async fn query<'a>(
         &'a self,
         repo: &'a Repository,
