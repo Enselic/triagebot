@@ -5,8 +5,6 @@
 // This schema can be downloaded from https://docs.github.com/public/schema.docs.graphql
 #[cynic::schema_for_derives(file = "src/github.graphql", module = "schema")]
 pub mod queries {
-    use crate::schema::__fields::IssueTimelineItemsConnection;
-
     use super::schema;
 
     pub type Date = chrono::NaiveDate;
@@ -78,9 +76,9 @@ pub mod queries {
     }
 
     #[derive(cynic::InlineFragments, Debug)]
-    enum IssueTimelineItem {
-        LabelledEvent(LabelledEvent),
-        UnlabelledEvent(UnlabelledEvent),
+    enum IssueTimelineItems {
+        LabelledEvent(LabeledEvent),
+        UnlabelledEvent(UnlabeledEvent),
         #[cynic(fallback)]
         Other,
     }
@@ -127,7 +125,7 @@ pub mod queries {
         pub total_count: i32,
         pub page_info: PageInfo,
         #[cynic(flatten)]
-        pub nodes: Vec<TooOldLabelIssueTimelineItem>,
+        pub nodes: Vec<IssueTimelineItems>,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
