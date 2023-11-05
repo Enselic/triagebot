@@ -77,8 +77,8 @@ pub mod queries {
         pub timeline_items: Option<TooOldLabelIssueTimelineItemsConnection>,
     }
 
-    #[derive(InlineFragments, Serialize, PartialEq, Debug)]
-    enum IssueTimelineItems {
+    #[derive(cynic::InlineFragments, Debug)]
+    enum IssueTimelineItem {
         LabelledEvent(LabelledEvent),
         UnlabelledEvent(UnlabelledEvent),
         #[cynic(fallback)]
@@ -131,12 +131,15 @@ pub mod queries {
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(graphql_type = "IssueTimelineItem")]
-    pub struct TooOldLabelIssueTimelineItem {
-        pub total_count: i32,
-        pub page_info: PageInfo,
-        #[cynic(flatten)]
-        pub nodes: Vec<TooOldLabelIssueTimelineItem>,
+    pub struct UnlabeledEvent {
+        pub label: Label,
+        pub created_at: DateTime,
+    }
+
+    #[derive(cynic::QueryFragment, Debug)]
+    pub struct LabeledEvent {
+        pub label: Label,
+        pub created_at: DateTime,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
