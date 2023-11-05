@@ -42,26 +42,20 @@ pub mod queries {
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(
-        graphql_type = "Query",
-        variables = "TooOldLabelArguments"
-    )]
+    #[cynic(graphql_type = "Query", variables = "TooOldLabelArguments")]
     pub struct TooOldLabelIssuesQuery {
         #[arguments(owner: $repository_owner, name: $repository_name)]
         pub repository: Option<TooOldLabelRepository>,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(
-        graphql_type = "Repository",
-        variables = "TooOldLabelArguments",
-    )]
+    #[cynic(graphql_type = "Repository", variables = "TooOldLabelArguments")]
     pub struct TooOldLabelRepository {
         #[arguments(
             states: "OPEN",
             first: 100,
             after: $after,
-            labels: ["E-needs-mcve"],
+            labels: [$label],
             orderBy: {direction: "ASC", field: "CREATED_AT"}
         )]
         pub issues: TooOldLabelIssueConnection,
@@ -78,16 +72,80 @@ pub mod queries {
         pub labels: Option<LabelConnection>,
         #[arguments(last = 1)]
         pub comments: IssueCommentConnection,
+        //#[arguments(last = 250, itemTypes = [IssueTimelineItemsItemType::LabeledEvent, IssueTimelineItemsItemType::UnlabeledEvent])]
         #[arguments(last = 250)]
-        pub timeline_items: Option<IssueTimelineItemsConnection>,
+        pub timeline_items: Option<TooOldLabelIssueTimelineItemsConnection>,
+    }
+
+    #[derive(InlineFragments, Serialize, PartialEq, Debug)]
+    enum IssueTimelineItems {
+        LabelledEvent(LabelledEvent),
+        UnlabelledEvent(UnlabelledEvent),
+        #[cynic(fallback)]
+        Other,
+    }
+
+    #[derive(cynic::Enum, Clone, Copy, Debug)]
+    #[cynic(rename_all = "SCREAMING_SNAKE_CASE")]
+    pub enum IssueTimelineItemsItemType {
+        AddedToProjectEvent,
+        AssignedEvent,
+        ClosedEvent,
+        CommentDeletedEvent,
+        ConnectedEvent,
+        ConvertedNoteToIssueEvent,
+        ConvertedToDiscussionEvent,
+        CrossReferencedEvent,
+        DemilestonedEvent,
+        DisconnectedEvent,
+        IssueComment,
+        LabeledEvent,
+        LockedEvent,
+        MarkedAsDuplicateEvent,
+        MentionedEvent,
+        MilestonedEvent,
+        MovedColumnsInProjectEvent,
+        PinnedEvent,
+        ReferencedEvent,
+        RemovedFromProjectEvent,
+        RenamedTitleEvent,
+        ReopenedEvent,
+        SubscribedEvent,
+        TransferredEvent,
+        UnassignedEvent,
+        UnlabeledEvent,
+        UnlockedEvent,
+        UnmarkedAsDuplicateEvent,
+        UnpinnedEvent,
+        UnsubscribedEvent,
+        UserBlockedEvent,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    pub struct IssueConnection {
+    #[cynic(graphql_type = "IssueTimelineItemsConnection")]
+    pub struct TooOldLabelIssueTimelineItemsConnection {
         pub total_count: i32,
         pub page_info: PageInfo,
         #[cynic(flatten)]
-        pub nodes: Vec<Issue>,
+        pub nodes: Vec<TooOldLabelIssueTimelineItem>,
+    }
+
+    #[derive(cynic::QueryFragment, Debug)]
+    #[cynic(graphql_type = "IssueTimelineItem")]
+    pub struct TooOldLabelIssueTimelineItem {
+        pub total_count: i32,
+        pub page_info: PageInfo,
+        #[cynic(flatten)]
+        pub nodes: Vec<TooOldLabelIssueTimelineItem>,
+    }
+
+    #[derive(cynic::QueryFragment, Debug)]
+    #[cynic(graphql_type = "IssueConnection")]
+    pub struct TooOldLabelIssueConnection {
+        pub total_count: i32,
+        pub page_info: PageInfo,
+        #[cynic(flatten)]
+        pub nodes: Vec<TooOldLabelIssue>,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
