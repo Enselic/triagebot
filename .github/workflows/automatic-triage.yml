@@ -1,0 +1,18 @@
+name: Automatic triage
+on:
+  workflow_dispatch: {}
+  push: {}
+  pull_request: {}
+  schedule:
+    - cron: "0 12 * * 1" # Every Monday at 12:00 UTC
+
+env:
+  AWS_ACCESS_KEY_ID: AKIA46X5W6CZEAQSMRH7
+
+jobs:
+  automatic-triage:
+    name: Automatic triage
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - run: cargo run --bin automatic-triage
