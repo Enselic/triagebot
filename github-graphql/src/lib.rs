@@ -35,7 +35,6 @@ pub mod queries {
         pub repository_owner: String,
         pub repository_name: String,
         pub label: String,
-        pub threshold_in_months: i32,
         pub after: Option<String>,
     }
 

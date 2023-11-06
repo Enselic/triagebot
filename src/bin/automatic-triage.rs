@@ -5,8 +5,6 @@ async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
     tracing_subscriber::fmt::init();
 
-    let agenda = agenda::prioritization();
-
-    print!("{}", agenda.call().await?);
+    print!("asdf");
     Ok(())
 }

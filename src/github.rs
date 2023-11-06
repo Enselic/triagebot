@@ -2298,9 +2298,13 @@ impl IssuesQuery for LeastRecentlyReviewedPullRequests {
     }
 }
 
-pub struct TooOldNeedsMcveIssues;
+pub struct TooOldLabel {
+    name: String,
+    age_considered_too_old: Duration,
+}
+
 #[async_trait]
-impl IssuesQuery for TooOldNeedsMcveIssues {
+impl IssuesQuery for TooOldLabel {
     async fn query<'a>(
         &'a self,
         repo: &'a Repository,
@@ -2316,10 +2320,11 @@ impl IssuesQuery for TooOldNeedsMcveIssues {
 
         let mut prs: Vec<queries::PullRequest> = vec![];
 
-        let mut args = queries::LeastRecentlyReviewedPullRequestsArguments {
+        let mut args = queries::TooOldLabelArguments {
             repository_owner,
-            repository_name: repository_name.clone(),
-            after: None,
+            repository_name,
+            label: self.name.clone(),
+            after: todo!(),
         };
         loop {
             let query = queries::LeastRecentlyReviewedPullRequests::build(args.clone());
