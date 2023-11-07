@@ -1,16 +1,8 @@
 use chrono::Duration;
-use reqwest::Client;
 use triagebot::github::{GithubClient, Repository};
 
 use cynic::QueryBuilder;
 use github_graphql::queries::{self, TooOldLabelIssue};
-
-
-
-pub struct TooOldLabel {
-    name: String,
-    age_considered_too_old: Duration,
-}
 
 pub async fn issues_with_minimum_label_age(
     repository_owner: &str,
@@ -19,7 +11,6 @@ pub async fn issues_with_minimum_label_age(
     minimum_label_age: Duration,
     client: &GithubClient,
 ) -> anyhow::Result<Vec<TooOldLabelIssue>> {
-
     let mut issues: Vec<queries::TooOldLabelIssue> = vec![];
 
     let mut args = queries::TooOldLabelArguments {

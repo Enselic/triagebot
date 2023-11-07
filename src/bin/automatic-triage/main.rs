@@ -1,5 +1,5 @@
 use reqwest::Client;
-use triagebot::github::{GithubClient, Repository};
+use triagebot::github::GithubClient;
 
 mod too_old_label;
 
@@ -15,7 +15,8 @@ async fn main() -> anyhow::Result<()> {
         "T-needs-mcve",
         chrono::Duration::days(30 * 12 * 4), // 3 years
         &client,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }
