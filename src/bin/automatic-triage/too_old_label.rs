@@ -12,7 +12,7 @@ pub struct TooOldLabel {
     age_considered_too_old: Duration,
 }
 
-async fn issues_with_minimum_label_age(
+pub async fn issues_with_minimum_label_age(
     repository_owner: &str,
     repository_name: &str,
     label: &str,
