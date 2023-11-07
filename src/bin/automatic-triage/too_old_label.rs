@@ -12,11 +12,11 @@ pub struct TooOldLabel {
     age_considered_too_old: Duration,
 }
 
-async fn issues_with_minimal_label_age(
+async fn issues_with_minimum_label_age(
     repository_owner: &str,
     repository_name: &str,
     label: &str,
-    minimal_label_age: Duration,
+    minimum_label_age: Duration,
     client: &GithubClient,
 ) -> anyhow::Result<Vec<TooOldLabelIssue>> {
 
@@ -54,7 +54,7 @@ async fn issues_with_minimal_label_age(
         args.after = page_info.end_cursor;
     }
 
-    for issue in issues {
+    for issue in &issues {
         println!("issue: {:?}", issue);
     }
 

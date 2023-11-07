@@ -1023,7 +1023,7 @@ struct Ordering<'a> {
 
 impl Repository {
     const GITHUB_API_URL: &'static str = "https://api.github.com";
-    const GITHUB_GRAPHQL_API_URL: &'static str = "https://api.github.com/graphql";
+    pub const GITHUB_GRAPHQL_API_URL: &'static str = "https://api.github.com/graphql";
 
     fn url(&self) -> String {
         format!("{}/repos/{}", Repository::GITHUB_API_URL, self.full_name)
@@ -1918,7 +1918,7 @@ impl GithubClient {
         self.client.delete(url).configure(self)
     }
 
-    fn post(&self, url: &str) -> RequestBuilder {
+    pub fn post(&self, url: &str) -> RequestBuilder {
         log::trace!("post {:?}", url);
         self.client.post(url).configure(self)
     }
