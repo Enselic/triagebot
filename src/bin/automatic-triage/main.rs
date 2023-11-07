@@ -12,7 +12,7 @@ async fn main() -> anyhow::Result<()> {
     too_old_label::issues_with_minimum_label_age(
         "rust-lang",
         "rust",
-        "T-needs-mcve",
+        "E-needs-mcve",
         chrono::Duration::days(30 * 12 * 4), // 3 years
         &client,
     )

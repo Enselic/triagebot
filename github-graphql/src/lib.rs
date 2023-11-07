@@ -50,7 +50,7 @@ pub mod queries {
     pub struct TooOldLabelRepository {
         #[arguments(
             states: "OPEN",
-            first: 100,
+            first: 1,
             after: $after,
             labels: [$label],
             orderBy: {direction: "ASC", field: "CREATED_AT"}
@@ -65,12 +65,12 @@ pub mod queries {
         pub created_at: DateTime,
         pub url: Uri,
         pub title: String,
-        #[arguments(first = 250)]
+        #[arguments(first = 5)]
         pub labels: Option<LabelConnection>,
         #[arguments(last = 1)]
         pub comments: IssueCommentConnection,
         //#[arguments(last = 250, itemTypes = [IssueTimelineItemsItemType::LabeledEvent, IssueTimelineItemsItemType::UnlabeledEvent])]
-        #[arguments(last = 250)]
+        #[arguments(last = 5)]
         pub timeline_items: Option<TooOldLabelIssueTimelineItemsConnection>,
     }
 
