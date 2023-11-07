@@ -13,9 +13,9 @@ async fn main() -> anyhow::Result<()> {
         "rust-lang",
         "rust",
         "T-needs-mcve",
-        std::time::Duration::from_secs(60 * 60 * 24 * 7 * 4),
+        chrono::Duration::days(30 * 12 * 4), // 3 years
         &client,
-    );
+    ).await?;
 
     Ok(())
 }
