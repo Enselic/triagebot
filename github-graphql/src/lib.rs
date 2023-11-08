@@ -31,7 +31,7 @@ pub mod queries {
     }
 
     #[derive(cynic::QueryVariables, Debug, Clone)]
-    pub struct TooOldLabelArguments {
+    pub struct OldLabelArguments {
         pub repository_owner: String,
         pub repository_name: String,
         pub label: String,
@@ -39,15 +39,15 @@ pub mod queries {
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(graphql_type = "Query", variables = "TooOldLabelArguments")]
-    pub struct TooOldLabelIssuesQuery {
+    #[cynic(graphql_type = "Query", variables = "OldLabelArguments")]
+    pub struct OldLabelIssuesQuery {
         #[arguments(owner: $repository_owner, name: $repository_name)]
-        pub repository: Option<TooOldLabelRepository>,
+        pub repository: Option<OldLabelRepository>,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
-    #[cynic(graphql_type = "Repository", variables = "TooOldLabelArguments")]
-    pub struct TooOldLabelRepository {
+    #[cynic(graphql_type = "Repository", variables = "OldLabelArguments")]
+    pub struct OldLabelRepository {
         #[arguments(
             states: "OPEN",
             first: 1,
@@ -55,12 +55,13 @@ pub mod queries {
             labels: [$label],
             orderBy: {direction: "ASC", field: "CREATED_AT"}
         )]
-        pub issues: TooOldLabelIssueConnection,
+        pub issues: OldLabelIssueConnection,
     }
 
+    /// An issue that might have an old label, but we have not analyzed it yet.
     #[derive(cynic::QueryFragment, Debug)]
     #[cynic(graphql_type = "Issue")]
-    pub struct TooOldLabelIssue {
+    pub struct OldLabelCandidateIssue {
         pub number: i32,
         pub created_at: DateTime,
         pub url: Uri,
@@ -140,11 +141,11 @@ pub mod queries {
 
     #[derive(cynic::QueryFragment, Debug)]
     #[cynic(graphql_type = "IssueConnection")]
-    pub struct TooOldLabelIssueConnection {
+    pub struct OldLabelIssueConnection {
         pub total_count: i32,
         pub page_info: PageInfo,
         #[cynic(flatten)]
-        pub nodes: Vec<TooOldLabelIssue>,
+        pub nodes: Vec<OldLabelCandidateIssue>,
     }
 
     #[derive(cynic::QueryFragment, Debug)]
