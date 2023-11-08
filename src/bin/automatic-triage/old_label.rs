@@ -28,23 +28,23 @@ fn filter_last_comment_age(
     minimum_age: Duration,
     now: &DateTime<Utc>,
 ) -> bool {
-    let now = chrono::Utc::now();
-
     let last_comment_at = issue
         .comments
         .nodes
         .last()
         .map(|c| c.created_at)
         .unwrap_or_else(|| issue.created_at);
-    let comment_age = now - last_comment_at;
-    if comment_age > minimum_age {
+
+    let last_comment_age = *now - last_comment_at;
+
+    if last_comment_age > minimum_age {
         true
     } else {
         println!(
             "{} commented less than {} months ago, namely {} months ago. No action.",
             issue.url.0,
             minimum_age.num_days() / 30,
-            comment_age.num_days() / 30,
+            last_comment_age.num_days() / 30,
         );
         false
     }
