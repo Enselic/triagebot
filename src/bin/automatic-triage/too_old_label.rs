@@ -1,4 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
+use tracing::warn;
 use triagebot::github::{GithubClient, Repository};
 
 use cynic::QueryBuilder;
@@ -69,6 +70,7 @@ pub async fn old_labels_query(
         let req = client.post(Repository::GITHUB_GRAPHQL_API_URL);
         let req = req.json(&query);
 
+        warn!("Running query (rate limit affected)");
         let data: cynic::GraphQlResponse<queries::OldLabelIssuesQuery> = client.json(req).await?;
 
         if let Some(errors) = data.errors {
