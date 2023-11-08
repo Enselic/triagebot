@@ -9,7 +9,8 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let client = GithubClient::new_with_default_token(Client::new());
-    old_label::issues_with_minimum_label_and_last_comment_age(
+
+    old_label::triage_old_label(
         "rust-lang",
         "rust",
         "E-needs-mcve",

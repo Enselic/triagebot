@@ -5,7 +5,7 @@ use triagebot::github::{GithubClient, Repository};
 use cynic::QueryBuilder;
 use github_graphql::queries::{self, OldLabelCandidateIssue};
 
-pub async fn issues_with_minimum_label_and_last_comment_age(
+pub async fn triage_old_label(
     repository_owner: &str,
     repository_name: &str,
     label: &str,
@@ -14,7 +14,7 @@ pub async fn issues_with_minimum_label_and_last_comment_age(
 ) -> anyhow::Result<Vec<OldLabelCandidateIssue>> {
     let now = chrono::Utc::now();
 
-    let candidates = old_labels_query(repository_owner, repository_name, label, client)
+    let candidates = issues_with_label(repository_owner, repository_name, label, client)
         .await?
         .into_iter()
         .filter(|issue| filter_last_comment_age(issue, minimum_age, &now))
@@ -41,16 +41,42 @@ fn filter_last_comment_age(
         true
     } else {
         println!(
-            "Ignoring {:?} \"{}\": last comment only {} days ago",
-            issue.url,
-            issue.title,
-            comment_age.num_days()
+            "{} commented less than {} months ago, namely {} months ago. No action.",
+            issue.url.0,
+            minimum_age.num_days() / 30,
+            comment_age.num_days() / 30,
         );
         false
     }
 }
 
-pub async fn old_labels_query(
+pub fn label_age(issue: &IssueWithTimelineItems) -> anyhow::Result<(Duration, Duration)> {
+    let mut last_labeled_at = None;
+    let mut last_commented_at = None;
+
+    for timeline_item in &issue.timeline_items {
+        if let TimelineItem::LabeledEvent {
+            label: Label { name },
+            created_at,
+        } = timeline_item
+        {
+            if name == E_NEEDS_MCVE {
+                last_labeled_at = Some(*created_at);
+            }
+        }
+        if let TimelineItem::IssueComment { created_at, .. } = timeline_item {
+            last_commented_at = Some(*created_at);
+        }
+    }
+
+    let now = chrono::Utc::now();
+    let label_age =
+        now.signed_duration_since(last_labeled_at.expect("only labeled issues queried for"));
+    let last_comment_age = now.signed_duration_since(last_commented_at.unwrap_or(issue.created_at));
+    Ok((label_age, last_comment_age))
+}
+
+pub async fn issues_with_label(
     repository_owner: &str,
     repository_name: &str,
     label: &str,
