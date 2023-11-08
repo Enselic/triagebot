@@ -1,21 +1,52 @@
-use chrono::Duration;
+use chrono::{DateTime, Duration, Utc};
 use triagebot::github::{GithubClient, Repository};
 
 use cynic::QueryBuilder;
 use github_graphql::queries::{self, OldLabelCandidateIssue};
 
-pub async fn issues_with_minimum_label_age(
+pub async fn issues_with_minimum_label_and_last_comment_age(
     repository_owner: &str,
     repository_name: &str,
     label: &str,
-    minimum_label_age: Duration,
+    minimum_age: Duration,
     client: &GithubClient,
 ) -> anyhow::Result<Vec<OldLabelCandidateIssue>> {
-    let candidates = old_labels_query(repository_owner, repository_name, label, client).await?;
-
     let now = chrono::Utc::now();
 
+    let candidates = old_labels_query(repository_owner, repository_name, label, client)
+        .await?
+        .into_iter()
+        .filter(|issue| filter_last_comment_age(issue, minimum_age, &now))
+        .collect::<Vec<_>>();
+
     Ok(vec![])
+}
+
+fn filter_last_comment_age(
+    issue: &OldLabelCandidateIssue,
+    minimum_age: Duration,
+    now: &DateTime<Utc>,
+) -> bool {
+    let now = chrono::Utc::now();
+
+    let last_comment_at = issue
+        .comments
+        .nodes
+        .last()
+        .map(|c| c.created_at)
+        .unwrap_or_else(|| issue.created_at);
+    let comment_age = now - last_comment_at;
+    if comment_age > minimum_age {
+        true
+    } else {
+        println!(
+            "Ignoring {:?} \"{}\": last comment only {} days ago",
+            issue.url,
+            issue.title,
+            comment_age.num_days()
+        );
+        false
+    }
 }
 
 pub async fn old_labels_query(
@@ -70,4 +101,3 @@ pub async fn old_labels_query(
 //         println!("issue: {:?}", issue);
 //     }
 // }
-

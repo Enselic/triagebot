@@ -74,6 +74,16 @@ pub mod queries {
         pub timeline_items: Option<TooOldLabelIssueTimelineItemsConnection>,
     }
 
+    impl OldLabelCandidateIssue {
+        pub fn last_comment_at(&self) -> DateTime {
+            self.comments
+                .nodes
+                .last()
+                .map(|c| c.created_at)
+                .unwrap_or_else(|| self.created_at)
+        }
+    }
+
     #[derive(cynic::InlineFragments, Debug)]
     pub enum IssueTimelineItems {
         LabelledEvent(LabeledEvent),
