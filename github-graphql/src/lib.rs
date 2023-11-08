@@ -66,11 +66,11 @@ pub mod queries {
         pub created_at: DateTime,
         pub url: Uri,
         pub title: String,
-        #[arguments(first = 100)]
+        #[arguments(first = 50)]
         pub labels: Option<LabelConnection>,
         #[arguments(last = 1)]
         pub comments: IssueCommentConnection,
-        #[arguments(last = 250)]
+        #[arguments(last = 250, itemTypes = Some(vec![IssueTimelineItemsItemType::LabeledEvent, IssueTimelineItemsItemType::UnlabeledEvent]))]
         pub timeline_items: Option<TooOldLabelIssueTimelineItemsConnection>,
     }
 
