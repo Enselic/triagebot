@@ -1,4 +1,3 @@
-use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use tracing::{debug, warn};
 use triagebot::github::{GithubClient, Repository};
@@ -7,7 +6,7 @@ use cynic::QueryBuilder;
 use github_graphql::queries::*;
 
 struct AnalyzedIssue {
-    number: i64,
+    number: i32,
     url: String,
     time_until_close: Duration,
 }
@@ -27,56 +26,39 @@ pub async fn triage_old_label(
         .into_iter()
         .filter(|issue| filter_excluded_labels(issue, exclude_labels_containing))
         .map(|issue| {
-            let label_age = label_age(&issue.timeline_items, label, &now);
+            let label_age = label_age(&issue.timeline_items.as_ref().unwrap(), label, &now);
             let last_comment_age = last_comment_age(&issue, &now);
             AnalyzedIssue {
                 number: issue.number,
                 url: issue.url.0,
-                time_until_close: std::cmp::max(label_age, last_comment_age),
+                time_until_close: minimum_age - std::cmp::max(label_age, last_comment_age),
             }
         })
         .collect::<Vec<_>>();
 
     issues.sort_by(|issue| issue.time_until_close);
 
-    // Print issues that will be closed soon
-    let months_to_peek = 3;
-    let reduced_minimum_age = minimum_age - chrono::Duration::days(30 * months_to_peek);
-    let issues_to_soon_close =
-        filter_by_minimum_age(&issues_with_label, label, reduced_minimum_age);
-    for issue in issues_to_soon_close {
-        println!(
-            "{} will be closed in (maybe substantially less than) within the coming . TODO: Actually implement closing",
-            issue.url.0
-        );
-    }
-
-    // Close issues that should be closed
-    let issues_to_close = filter_by_minimum_age(&issues_with_label, label, minimum_age);
-    for issue in issues_to_close {
-        // FIXME: Actually close the issue
-        // FIXME: Report to "triagebot closed issues" in Zulip
-        println!(
-            "{} will be closed. FIXME: Actually implement closing",
-            issue.url.0
-        );
+    for issue in issues {
+        if issue.time_until_close > 0 {
+            println!(
+                "{} will be closed after {} months",
+                issue.url,
+                issue.time_until_close.num_days() / 30
+            );
+        } else {
+            // FIXME: Actually close the issue
+            // FIXME: Report to "triagebot closed issues" in Zulip
+            println!(
+                "{} will be closed now (FIXME: Actually implement closing)",
+                issue.url,
+                issue.time_until_close.num_days() / 30
+            );
+        }
     }
 
     Ok(())
 }
 
-fn filter_by_minimum_age(
-    issues: &[OldLabelCandidateIssue],
-    label: &str,
-    minimum_age: Duration,
-) -> Vec<OldLabelCandidateIssue> {
-    issues
-        .into_iter()
-        .filter(|issue| filter_last_comment_age(issue, minimum_age, &now))
-        .filter(|issue| filter_label_age(issue, label, minimum_age, &now))
-        .cloned()
-        .collect()
-}
 
 /// If an issue is actively discussed, there is no limit on the age of the
 /// label. We don't want to close issues that people are actively commenting on.
@@ -85,7 +67,7 @@ fn filter_by_minimum_age(
 /// We filter on comment age before label age so we don't have to unnecessarily
 /// make paged queries on timeline events to get label history. If the last
 /// comment is  young, the label age does not matter.
-fn last_comment_age(issue: &OldLabelCandidateIssue, now: &DateTime<Utc>) -> bool {
+fn last_comment_age(issue: &OldLabelCandidateIssue, now: &DateTime<Utc>) -> Duration {
     let last_comment_at = issue
         .comments
         .nodes
@@ -105,33 +87,8 @@ fn filter_excluded_labels(issue: &OldLabelCandidateIssue, exclude_labels_contain
     })
 }
 
-fn filter_label_age(
-    issue: &OldLabelCandidateIssue,
-    label: &str,
-    minimum_age: Duration,
-    now: &DateTime<Utc>,
-) -> bool {
-    let label_age = label_age(&timeline_items.nodes, label, now);
-    if label_age > minimum_age {
-        true
-    } else {
-        debug!(
-            "{} labeled {} less than {} months ago, namely {} months ago. No action.",
-            issue.url.0,
-            label,
-            minimum_age.num_days() / 30,
-            label_age.num_days() / 30,
-        );
-        false
-    }
-}
-
-pub fn label_age(
-    timeline_items: &IssueTimelineItemsConnection,
-    label: &str,
-    now: &DateTime<Utc>,
-) -> Duration {
-    let timeline_items = &timeline_items.as_ref().unwrap();
+pub fn label_age(issue: &OldLabelCandidateIssue, label: &str, now: &DateTime<Utc>) -> Duration {
+    let timeline_items = &issue.timeline_items.as_ref().unwrap();
 
     if timeline_items.page_info.has_next_page {
         eprintln!(
@@ -148,14 +105,14 @@ pub fn label_age(
     // need to bother with UnlabeledEvent since in the query we require the
     // label to be present, so we know it has not been unlabeled in the last
     // event.
-    for timeline_item in timeline_items {
+    for timeline_item in timeline_items.nodes {
         if let IssueTimelineItems::LabeledEvent(LabeledEvent {
             label: Label { name },
             created_at,
         }) = timeline_item
         {
             if name == label {
-                last_labeled_at = Some(*created_at);
+                last_labeled_at = Some(created_at);
             }
         }
     }

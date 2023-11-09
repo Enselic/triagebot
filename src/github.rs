@@ -105,7 +105,7 @@ impl GithubClient {
         }
 
         log::warn!(
-            "Retrying after {} seconds, remaining attepts {}",
+            "Retrying after {} seconds, remaining attempts {}",
             sleep.as_secs(),
             remaining_attempts,
         );

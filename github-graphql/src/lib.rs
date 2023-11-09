@@ -59,7 +59,7 @@ pub mod queries {
     }
 
     /// An issue that might have an old label, but we have not analyzed it yet.
-    #[derive(cynic::QueryFragment, Debug, Clone)]
+    #[derive(cynic::QueryFragment, Debug)]
     #[cynic(graphql_type = "Issue")]
     pub struct OldLabelCandidateIssue {
         pub number: i32,
