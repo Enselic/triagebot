@@ -26,18 +26,13 @@ pub async fn triage_old_label(
         filter_by_minimum_age(&issues_with_label, label, reduced_minimum_age);
     for issue in issues_to_soon_close {
         println!(
-            "{} will be closed. TODO: Actually implement closing",
+            "{} will be closed in (maybe substantially less than) within the coming . TODO: Actually implement closing",
             issue.url.0
         );
-        // FIXME: Actually close the issue
-        // FIXME: Report the close to a Zulip topic called "triagebot closed issues" in the "t-release/triage" stream
     }
 
     // Close issues that should be closed
-    let issues_to_close = issues_with_label
-        .iter()
-        .filter(|issue| filter_last_comment_age(issue, minimum_age, &now))
-        .filter(|issue| filter_label_age(issue, label, minimum_age, &now));
+    let issues_to_close = filter_by_minimum_age(&issues_with_label, label, minimum_age);
     for issue in issues_to_close {
         // FIXME: Actually close the issue
         // FIXME: Report to "triagebot closed issues" in Zulip
