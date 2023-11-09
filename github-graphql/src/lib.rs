@@ -66,12 +66,12 @@ pub mod queries {
         pub created_at: DateTime,
         pub url: Uri,
         pub title: String,
-        #[arguments(first = 50)]
+        #[arguments(first = 100)]
         pub labels: Option<LabelConnection>,
         #[arguments(last = 1)]
         pub comments: IssueCommentConnection,
         #[arguments(last = 250, itemTypes = Some(vec![IssueTimelineItemsItemType::LabeledEvent, IssueTimelineItemsItemType::UnlabeledEvent]))]
-        pub timeline_items: Option<TooOldLabelIssueTimelineItemsConnection>,
+        pub timeline_items: Option<IssueTimelineItemsConnection>,
     }
 
     impl OldLabelCandidateIssue {
@@ -84,9 +84,10 @@ pub mod queries {
         }
     }
 
+    /// Extend this with more events when you need them.
     #[derive(cynic::InlineFragments, Debug)]
     pub enum IssueTimelineItems {
-        LabelledEvent(LabeledEvent),
+        LabeledEvent(LabeledEvent),
         UnlabelledEvent(UnlabeledEvent),
         #[cynic(fallback)]
         Other,
@@ -130,7 +131,7 @@ pub mod queries {
 
     #[derive(cynic::QueryFragment, Debug)]
     #[cynic(graphql_type = "IssueTimelineItemsConnection")]
-    pub struct TooOldLabelIssueTimelineItemsConnection {
+    pub struct IssueTimelineItemsConnection {
         pub total_count: i32,
         pub page_info: PageInfo,
         #[cynic(flatten)]

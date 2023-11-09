@@ -3,7 +3,7 @@ use tracing::warn;
 use triagebot::github::{GithubClient, Repository};
 
 use cynic::QueryBuilder;
-use github_graphql::queries::{self, OldLabelCandidateIssue};
+use github_graphql::queries::*;
 
 pub async fn triage_old_label(
     repository_owner: &str,
@@ -18,11 +18,19 @@ pub async fn triage_old_label(
         .await?
         .into_iter()
         .filter(|issue| filter_last_comment_age(issue, minimum_age, &now))
+        .filter(|issue| filter_label_age(issue, label, minimum_age, &now))
         .collect::<Vec<_>>();
 
     Ok(vec![])
 }
 
+/// If an issue is actively discussed, there is no limit on the age of the
+/// label. We don't want to close issues that people are actively commenting on.
+/// So require the last comment to also be old.
+///
+/// We filter on comment age before label age so we don't have to unnecessarily
+/// make paged queries on timeline events to get label history. If the last
+/// comment is  young, the label age does not matter.
 fn filter_last_comment_age(
     issue: &OldLabelCandidateIssue,
     minimum_age: Duration,
@@ -50,30 +58,61 @@ fn filter_last_comment_age(
     }
 }
 
-pub fn label_age(issue: &IssueWithTimelineItems) -> anyhow::Result<(Duration, Duration)> {
-    let mut last_labeled_at = None;
-    let mut last_commented_at = None;
+fn filter_label_age(
+    issue: &OldLabelCandidateIssue,
+    label: &str,
+    minimum_age: Duration,
+    now: &DateTime<Utc>,
+) -> bool {
+    let timeline_items = &issue.timeline_items.as_ref().unwrap();
+    if timeline_items.page_info.has_next_page {
+        eprintln!(
+            "{} has more than 250 LabeledEvents. We need to implement paging!",
+            issue.url.0
+        );
+        return false;
+    }
 
-    for timeline_item in &issue.timeline_items {
-        if let TimelineItem::LabeledEvent {
+    let label_age = label_age(&timeline_items.nodes, label, now);
+    if label_age > minimum_age {
+        true
+    } else {
+        println!(
+            "{} labeled {} less than {} months ago, namely {} months ago. No action.",
+            issue.url.0,
+            label,
+            minimum_age.num_days() / 30,
+            label_age.num_days() / 30,
+        );
+        false
+    }
+}
+
+pub fn label_age(
+    timeline_items: &[IssueTimelineItems],
+    label: &str,
+    now: &DateTime<Utc>,
+) -> Duration {
+    let mut last_labeled_at = None;
+
+    // The way the GraphQL query is constructed guarantees that we see the
+    // oldest event first, so we can simply iterate sequentially. And we don't
+    // need to bother with UnlabeledEvent since in the query we require the
+    // label to be present, so we know it has not been unlabeled in the last
+    // event.
+    for timeline_item in timeline_items {
+        if let IssueTimelineItems::LabeledEvent(LabeledEvent {
             label: Label { name },
             created_at,
-        } = timeline_item
+        }) = timeline_item
         {
-            if name == E_NEEDS_MCVE {
+            if name == label {
                 last_labeled_at = Some(*created_at);
             }
         }
-        if let TimelineItem::IssueComment { created_at, .. } = timeline_item {
-            last_commented_at = Some(*created_at);
-        }
     }
 
-    let now = chrono::Utc::now();
-    let label_age =
-        now.signed_duration_since(last_labeled_at.expect("only labeled issues queried for"));
-    let last_comment_age = now.signed_duration_since(last_commented_at.unwrap_or(issue.created_at));
-    Ok((label_age, last_comment_age))
+    now.signed_duration_since(last_labeled_at.expect("query ensures label exist"))
 }
 
 pub async fn issues_with_label(
@@ -82,9 +121,9 @@ pub async fn issues_with_label(
     label: &str,
     client: &GithubClient,
 ) -> anyhow::Result<Vec<OldLabelCandidateIssue>> {
-    let mut issues: Vec<queries::OldLabelCandidateIssue> = vec![];
+    let mut issues: Vec<OldLabelCandidateIssue> = vec![];
 
-    let mut args = queries::OldLabelArguments {
+    let mut args = OldLabelArguments {
         repository_owner: repository_owner.to_owned(),
         repository_name: repository_name.to_owned(),
         label: label.to_owned(),
@@ -92,12 +131,12 @@ pub async fn issues_with_label(
     };
 
     loop {
-        let query = queries::OldLabelIssuesQuery::build(args.clone());
+        let query = OldLabelIssuesQuery::build(args.clone());
         let req = client.post(Repository::GITHUB_GRAPHQL_API_URL);
         let req = req.json(&query);
 
         warn!("Running query (rate limit affected)");
-        let data: cynic::GraphQlResponse<queries::OldLabelIssuesQuery> = client.json(req).await?;
+        let data: cynic::GraphQlResponse<OldLabelIssuesQuery> = client.json(req).await?;
 
         if let Some(errors) = data.errors {
             anyhow::bail!("There were graphql errors. {:?}", errors);
@@ -120,12 +159,3 @@ pub async fn issues_with_label(
 
     Ok(issues)
 }
-
-// fn has_too_old_comment(issue: TooOldLabelIssue) {
-//     let now = chrono::Utc::now();
-//     let last_comment_at = issue.comments.nodes.first().map(|c|c.created_at).unwrap_or_else(|| issue.created_at);
-//     let comment_age = now - last_comment.created_at;
-//     if comment_age > chrono::Duration::days(30) {
-//         println!("issue: {:?}", issue);
-//     }
-// }
