@@ -9,7 +9,7 @@ use github_graphql::queries::*;
 struct AnalyzedIssue {
     number: i64,
     url: String,
-    time_before_close: Duration,
+    time_until_close: Duration,
 }
 
 pub async fn triage_old_label(
@@ -22,15 +22,22 @@ pub async fn triage_old_label(
 ) -> anyhow::Result<()> {
     let now = chrono::Utc::now();
 
-    let issues = issues_with_label(repository_owner, repository_name, label, client)
+    let mut issues = issues_with_label(repository_owner, repository_name, label, client)
         .await?
         .into_iter()
         .filter(|issue| filter_excluded_labels(issue, exclude_labels_containing))
         .map(|issue| {
             let label_age = label_age(&issue.timeline_items, label, &now);
             let last_comment_age = last_comment_age(&issue, &now);
+            AnalyzedIssue {
+                number: issue.number,
+                url: issue.url.0,
+                time_until_close: std::cmp::max(label_age, last_comment_age),
+            }
         })
         .collect::<Vec<_>>();
+
+    issues.sort_by(|issue| issue.time_until_close);
 
     // Print issues that will be closed soon
     let months_to_peek = 3;
@@ -131,7 +138,7 @@ pub fn label_age(
             "{} has more than 250 `LabeledEvent`s. We need to implement paging!",
             issue.url.0
         );
-        return Duration::days(30 * 9999);
+        return Duration::days(30 * 999999);
     }
 
     let mut last_labeled_at = None;
@@ -153,7 +160,9 @@ pub fn label_age(
         }
     }
 
-    now.signed_duration_since(last_labeled_at.expect("The GraphQL query only includes issues that has the label"))
+    now.signed_duration_since(
+        last_labeled_at.expect("The GraphQL query only includes issues that has the label"),
+    )
 }
 
 pub async fn issues_with_label(
