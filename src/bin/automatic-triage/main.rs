@@ -14,11 +14,11 @@ async fn main() -> anyhow::Result<()> {
         "rust-lang",
         "rust",
         "E-needs-mcve",
-        "triaged", // Exclude e.g. AsyncAwait-Triaged
+        "triaged", // Exclude e.g. label "AsyncAwait-Triaged"
         chrono::Duration::days(30 * 12 * 4),
         &client,
     )
-    .await;
+    .await?;
 
     Ok(())
 }

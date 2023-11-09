@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use tracing::info;
+use tracing::{debug, info};
 use triagebot::github::{GithubClient, Repository};
 
 use cynic::QueryBuilder;
@@ -36,7 +36,7 @@ pub async fn triage_old_label(
             AnalyzedIssue {
                 number: issue.number,
                 url: issue.url.0,
-                time_until_close: minimum_age - std::cmp::max(label_age, last_comment_age),
+                time_until_close: minimum_age - std::cmp::min(label_age, last_comment_age),
             }
         })
         .collect::<Vec<_>>();
@@ -62,9 +62,65 @@ pub async fn triage_old_label(
     Ok(())
 }
 
-async fn close_issue(_number: i32, _client: &GithubClient) {
-    // FIXME: Actually close the issue
-    // FIXME: Report to "triagebot closed issues" in Zulip
+pub async fn issues_with_label(
+    repository_owner: &str,
+    repository_name: &str,
+    label: &str,
+    client: &GithubClient,
+) -> anyhow::Result<Vec<OldLabelCandidateIssue>> {
+    let mut issues: Vec<OldLabelCandidateIssue> = vec![];
+
+    let mut args = OldLabelArguments {
+        repository_owner: repository_owner.to_owned(),
+        repository_name: repository_name.to_owned(),
+        label: label.to_owned(),
+        after: None,
+    };
+
+    let mut max_iterations_left = 100;
+    loop {
+        max_iterations_left -= 1;
+        if max_iterations_left < 0 {
+            anyhow::bail!("Bailing to avoid rate limit depletion. This is a sanity check.");
+        }
+
+        let query = OldLabelIssuesQuery::build(args.clone());
+        let req = client.post(Repository::GITHUB_GRAPHQL_API_URL);
+        let req = req.json(&query);
+
+        info!("GitHub GraphQL API endpoint request (affects rate limit)");
+        let data: cynic::GraphQlResponse<OldLabelIssuesQuery> = client.json(req).await?;
+
+        if let Some(errors) = data.errors {
+            anyhow::bail!("There were graphql errors. {:?}", errors);
+        }
+
+        let repository = data
+            .data
+            .ok_or_else(|| anyhow::anyhow!("No data returned."))?
+            .repository
+            .ok_or_else(|| anyhow::anyhow!("No repository."))?;
+
+        issues.extend(repository.issues.nodes);
+        debug!("Found {} issues", issues.len());
+
+        let page_info = repository.issues.page_info;
+        if !page_info.has_next_page || page_info.end_cursor.is_none() {
+            break;
+        }
+        args.after = page_info.end_cursor;
+    }
+
+    Ok(issues)
+}
+
+fn filter_excluded_labels(issue: &OldLabelCandidateIssue, exclude_labels_containing: &str) -> bool {
+    !issue.labels.as_ref().unwrap().nodes.iter().any(|label| {
+        label
+            .name
+            .to_lowercase()
+            .contains(exclude_labels_containing)
+    })
 }
 
 fn last_comment_age(issue: &OldLabelCandidateIssue, now: &DateTime<Utc>) -> Duration {
@@ -76,15 +132,6 @@ fn last_comment_age(issue: &OldLabelCandidateIssue, now: &DateTime<Utc>) -> Dura
         .unwrap_or_else(|| issue.created_at);
 
     *now - last_comment_at
-}
-
-fn filter_excluded_labels(issue: &OldLabelCandidateIssue, exclude_labels_containing: &str) -> bool {
-    issue.labels.as_ref().unwrap().nodes.iter().any(|label| {
-        label
-            .name
-            .to_lowercase()
-            .contains(exclude_labels_containing)
-    })
 }
 
 pub fn label_age(issue: &OldLabelCandidateIssue, label: &str, now: &DateTime<Utc>) -> Duration {
@@ -122,53 +169,7 @@ pub fn label_age(issue: &OldLabelCandidateIssue, label: &str, now: &DateTime<Utc
     )
 }
 
-pub async fn issues_with_label(
-    repository_owner: &str,
-    repository_name: &str,
-    label: &str,
-    client: &GithubClient,
-) -> anyhow::Result<Vec<OldLabelCandidateIssue>> {
-    let mut issues: Vec<OldLabelCandidateIssue> = vec![];
-
-    let mut args = OldLabelArguments {
-        repository_owner: repository_owner.to_owned(),
-        repository_name: repository_name.to_owned(),
-        label: label.to_owned(),
-        after: None,
-    };
-
-    let mut max_iterations_left = 100;
-    loop {
-        max_iterations_left -= 1;
-        if max_iterations_left == 0 {
-            anyhow::bail!("Bailing to avoid rate limit depletion. This is a sanity check.");
-        }
-
-        let query = OldLabelIssuesQuery::build(args.clone());
-        let req = client.post(Repository::GITHUB_GRAPHQL_API_URL);
-        let req = req.json(&query);
-
-        info!("Running query (rate limit affected)");
-        let data: cynic::GraphQlResponse<OldLabelIssuesQuery> = client.json(req).await?;
-
-        if let Some(errors) = data.errors {
-            anyhow::bail!("There were graphql errors. {:?}", errors);
-        }
-
-        let repository = data
-            .data
-            .ok_or_else(|| anyhow::anyhow!("No data returned."))?
-            .repository
-            .ok_or_else(|| anyhow::anyhow!("No repository."))?;
-
-        issues.extend(repository.issues.nodes);
-
-        let page_info = repository.issues.page_info;
-        if !page_info.has_next_page || page_info.end_cursor.is_none() {
-            break;
-        }
-        args.after = page_info.end_cursor;
-    }
-
-    Ok(issues)
+async fn close_issue(_number: i32, _client: &GithubClient) {
+    // FIXME: Actually close the issue
+    // FIXME: Report to "triagebot closed issues" topic in "t-release/triage" Zulip
 }
