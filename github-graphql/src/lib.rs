@@ -50,7 +50,7 @@ pub mod queries {
     pub struct OldLabelRepository {
         #[arguments(
             states: "OPEN",
-            first: 25,
+            first: 30,
             after: $after,
             labels: [$label],
             orderBy: {direction: "ASC", field: "CREATED_AT"}

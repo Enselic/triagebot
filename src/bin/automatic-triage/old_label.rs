@@ -41,7 +41,7 @@ pub async fn triage_old_label(
         })
         .collect::<Vec<_>>();
 
-    issues.sort_by_key(|issue| issue.time_until_close);
+    issues.sort_by_key(|issue| std::cmp::Reverse(issue.time_until_close));
 
     for issue in issues {
         if issue.time_until_close.num_days() > 0 {
@@ -81,7 +81,7 @@ pub async fn issues_with_label(
     loop {
         max_iterations_left -= 1;
         if max_iterations_left < 0 {
-            anyhow::bail!("Bailing to avoid rate limit depletion. This is a sanity check.");
+            anyhow::bail!("Bailing to avoid rate limit depletion. The code might be buggy.");
         }
 
         let query = OldLabelIssuesQuery::build(args.clone());
@@ -102,7 +102,12 @@ pub async fn issues_with_label(
             .ok_or_else(|| anyhow::anyhow!("No repository."))?;
 
         issues.extend(repository.issues.nodes);
-        debug!("Found {} issues", issues.len());
+
+        debug!(
+            "Now have {} issues of {}",
+            issues.len(),
+            repository.issues.total_count
+        );
 
         let page_info = repository.issues.page_info;
         if !page_info.has_next_page || page_info.end_cursor.is_none() {
