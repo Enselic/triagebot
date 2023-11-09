@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use tracing::{debug, warn};
+use tracing::info;
 use triagebot::github::{GithubClient, Repository};
 
 use cynic::QueryBuilder;
@@ -26,8 +26,13 @@ pub async fn triage_old_label(
         .into_iter()
         .filter(|issue| filter_excluded_labels(issue, exclude_labels_containing))
         .map(|issue| {
-            let label_age = label_age(&issue.timeline_items.as_ref().unwrap(), label, &now);
+            // If an issue is actively discussed, there is no limit on the age of the
+            // label. We don't want to close issues that people are actively commenting on.
+            // So require the last comment to also be old.
             let last_comment_age = last_comment_age(&issue, &now);
+
+            let label_age = label_age(&issue, label, &now);
+
             AnalyzedIssue {
                 number: issue.number,
                 url: issue.url.0,
@@ -36,37 +41,32 @@ pub async fn triage_old_label(
         })
         .collect::<Vec<_>>();
 
-    issues.sort_by(|issue| issue.time_until_close);
+    issues.sort_by_key(|issue| issue.time_until_close);
 
     for issue in issues {
-        if issue.time_until_close > 0 {
+        if issue.time_until_close.num_days() > 0 {
             println!(
                 "{} will be closed after {} months",
                 issue.url,
                 issue.time_until_close.num_days() / 30
             );
         } else {
-            // FIXME: Actually close the issue
-            // FIXME: Report to "triagebot closed issues" in Zulip
             println!(
                 "{} will be closed now (FIXME: Actually implement closing)",
                 issue.url,
-                issue.time_until_close.num_days() / 30
             );
+            close_issue(issue.number, client).await;
         }
     }
 
     Ok(())
 }
 
+async fn close_issue(_number: i32, _client: &GithubClient) {
+    // FIXME: Actually close the issue
+    // FIXME: Report to "triagebot closed issues" in Zulip
+}
 
-/// If an issue is actively discussed, there is no limit on the age of the
-/// label. We don't want to close issues that people are actively commenting on.
-/// So require the last comment to also be old.
-///
-/// We filter on comment age before label age so we don't have to unnecessarily
-/// make paged queries on timeline events to get label history. If the last
-/// comment is  young, the label age does not matter.
 fn last_comment_age(issue: &OldLabelCandidateIssue, now: &DateTime<Utc>) -> Duration {
     let last_comment_at = issue
         .comments
@@ -105,7 +105,7 @@ pub fn label_age(issue: &OldLabelCandidateIssue, label: &str, now: &DateTime<Utc
     // need to bother with UnlabeledEvent since in the query we require the
     // label to be present, so we know it has not been unlabeled in the last
     // event.
-    for timeline_item in timeline_items.nodes {
+    for timeline_item in &timeline_items.nodes {
         if let IssueTimelineItems::LabeledEvent(LabeledEvent {
             label: Label { name },
             created_at,
@@ -118,7 +118,7 @@ pub fn label_age(issue: &OldLabelCandidateIssue, label: &str, now: &DateTime<Utc
     }
 
     now.signed_duration_since(
-        last_labeled_at.expect("The GraphQL query only includes issues that has the label"),
+        *last_labeled_at.expect("The GraphQL query only includes issues that has the label"),
     )
 }
 
@@ -148,7 +148,7 @@ pub async fn issues_with_label(
         let req = client.post(Repository::GITHUB_GRAPHQL_API_URL);
         let req = req.json(&query);
 
-        warn!("Running query (rate limit affected)");
+        info!("Running query (rate limit affected)");
         let data: cynic::GraphQlResponse<OldLabelIssuesQuery> = client.json(req).await?;
 
         if let Some(errors) = data.errors {
