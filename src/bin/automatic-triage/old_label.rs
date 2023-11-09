@@ -1,9 +1,16 @@
+use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use tracing::{debug, warn};
 use triagebot::github::{GithubClient, Repository};
 
 use cynic::QueryBuilder;
 use github_graphql::queries::*;
+
+struct AnalyzedIssue {
+    number: i64,
+    url: String,
+    time_before_close: Duration,
+}
 
 pub async fn triage_old_label(
     repository_owner: &str,
@@ -13,10 +20,16 @@ pub async fn triage_old_label(
     minimum_age: Duration,
     client: &GithubClient,
 ) -> anyhow::Result<()> {
-    let issues_with_label = issues_with_label(repository_owner, repository_name, label, client)
+    let now = chrono::Utc::now();
+
+    let issues = issues_with_label(repository_owner, repository_name, label, client)
         .await?
         .into_iter()
         .filter(|issue| filter_excluded_labels(issue, exclude_labels_containing))
+        .map(|issue| {
+            let label_age = label_age(&issue.timeline_items, label, &now);
+            let last_comment_age = last_comment_age(&issue, &now);
+        })
         .collect::<Vec<_>>();
 
     // Print issues that will be closed soon
@@ -50,8 +63,6 @@ fn filter_by_minimum_age(
     label: &str,
     minimum_age: Duration,
 ) -> Vec<OldLabelCandidateIssue> {
-    let now = chrono::Utc::now();
-
     issues
         .into_iter()
         .filter(|issue| filter_last_comment_age(issue, minimum_age, &now))
@@ -67,11 +78,7 @@ fn filter_by_minimum_age(
 /// We filter on comment age before label age so we don't have to unnecessarily
 /// make paged queries on timeline events to get label history. If the last
 /// comment is  young, the label age does not matter.
-fn filter_last_comment_age(
-    issue: &OldLabelCandidateIssue,
-    minimum_age: Duration,
-    now: &DateTime<Utc>,
-) -> bool {
+fn last_comment_age(issue: &OldLabelCandidateIssue, now: &DateTime<Utc>) -> bool {
     let last_comment_at = issue
         .comments
         .nodes
@@ -79,19 +86,7 @@ fn filter_last_comment_age(
         .map(|c| c.created_at)
         .unwrap_or_else(|| issue.created_at);
 
-    let last_comment_age = *now - last_comment_at;
-
-    if last_comment_age > minimum_age {
-        true
-    } else {
-        debug!(
-            "{} commented less than {} months ago, namely {} months ago. No action.",
-            issue.url.0,
-            minimum_age.num_days() / 30,
-            last_comment_age.num_days() / 30,
-        );
-        false
-    }
+    *now - last_comment_at
 }
 
 fn filter_excluded_labels(issue: &OldLabelCandidateIssue, exclude_labels_containing: &str) -> bool {
@@ -109,15 +104,6 @@ fn filter_label_age(
     minimum_age: Duration,
     now: &DateTime<Utc>,
 ) -> bool {
-    let timeline_items = &issue.timeline_items.as_ref().unwrap();
-    if timeline_items.page_info.has_next_page {
-        eprintln!(
-            "{} has more than 250 LabeledEvents. We need to implement paging!",
-            issue.url.0
-        );
-        return false;
-    }
-
     let label_age = label_age(&timeline_items.nodes, label, now);
     if label_age > minimum_age {
         true
@@ -134,10 +120,20 @@ fn filter_label_age(
 }
 
 pub fn label_age(
-    timeline_items: &[IssueTimelineItems],
+    timeline_items: &IssueTimelineItemsConnection,
     label: &str,
     now: &DateTime<Utc>,
 ) -> Duration {
+    let timeline_items = &timeline_items.as_ref().unwrap();
+
+    if timeline_items.page_info.has_next_page {
+        eprintln!(
+            "{} has more than 250 `LabeledEvent`s. We need to implement paging!",
+            issue.url.0
+        );
+        return Duration::days(30 * 9999);
+    }
+
     let mut last_labeled_at = None;
 
     // The way the GraphQL query is constructed guarantees that we see the
@@ -157,7 +153,7 @@ pub fn label_age(
         }
     }
 
-    now.signed_duration_since(last_labeled_at.expect("query ensures label exist"))
+    now.signed_duration_since(last_labeled_at.expect("The GraphQL query only includes issues that has the label"))
 }
 
 pub async fn issues_with_label(
