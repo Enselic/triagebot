@@ -12,19 +12,19 @@ pub async fn triage_old_label(
     exclude_labels_containing: &str,
     minimum_age: Duration,
     client: &GithubClient,
-) {
-    let now = chrono::Utc::now();
-
-    let issues_to_close = issues_with_label(repository_owner, repository_name, label, client)
-        .await
-        .unwrap()
+) -> anyhow::Result<()> {
+    let issues_with_label = issues_with_label(repository_owner, repository_name, label, client)
+        .await?
         .into_iter()
-        .filter(|issue| filter_last_comment_age(issue, minimum_age, &now))
-        .filter(|issue| filter_label_age(issue, label, minimum_age, &now))
         .filter(|issue| filter_excluded_labels(issue, exclude_labels_containing))
         .collect::<Vec<_>>();
 
-    for issue in &issues_to_close {
+    // Print issues that will be closed soon
+    let months_to_peek = 3;
+    let reduced_minimum_age = minimum_age - chrono::Duration::days(30 * months_to_peek);
+    let issues_to_soon_close =
+        filter_by_minimum_age(&issues_with_label, label, reduced_minimum_age);
+    for issue in issues_to_soon_close {
         println!(
             "{} will be closed. TODO: Actually implement closing",
             issue.url.0
@@ -32,6 +32,37 @@ pub async fn triage_old_label(
         // FIXME: Actually close the issue
         // FIXME: Report the close to a Zulip topic called "triagebot closed issues" in the "t-release/triage" stream
     }
+
+    // Close issues that should be closed
+    let issues_to_close = issues_with_label
+        .iter()
+        .filter(|issue| filter_last_comment_age(issue, minimum_age, &now))
+        .filter(|issue| filter_label_age(issue, label, minimum_age, &now));
+    for issue in issues_to_close {
+        // FIXME: Actually close the issue
+        // FIXME: Report to "triagebot closed issues" in Zulip
+        println!(
+            "{} will be closed. FIXME: Actually implement closing",
+            issue.url.0
+        );
+    }
+
+    Ok(())
+}
+
+fn filter_by_minimum_age(
+    issues: &[OldLabelCandidateIssue],
+    label: &str,
+    minimum_age: Duration,
+) -> Vec<OldLabelCandidateIssue> {
+    let now = chrono::Utc::now();
+
+    issues
+        .into_iter()
+        .filter(|issue| filter_last_comment_age(issue, minimum_age, &now))
+        .filter(|issue| filter_label_age(issue, label, minimum_age, &now))
+        .cloned()
+        .collect()
 }
 
 /// If an issue is actively discussed, there is no limit on the age of the
