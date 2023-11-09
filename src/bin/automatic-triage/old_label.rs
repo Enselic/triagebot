@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use tracing::warn;
+use tracing::{debug, warn};
 use triagebot::github::{GithubClient, Repository};
 
 use cynic::QueryBuilder;
@@ -9,6 +9,7 @@ pub async fn triage_old_label(
     repository_owner: &str,
     repository_name: &str,
     label: &str,
+    exclude_labels_containing: &str,
     minimum_age: Duration,
     client: &GithubClient,
 ) {
@@ -20,10 +21,8 @@ pub async fn triage_old_label(
         .into_iter()
         .filter(|issue| filter_last_comment_age(issue, minimum_age, &now))
         .filter(|issue| filter_label_age(issue, label, minimum_age, &now))
+        .filter(|issue| filter_excluded_labels(issue, exclude_labels_containing))
         .collect::<Vec<_>>();
-
-    // TODO: have no label that contains the word "triaged", e.g. AsyncAwait-Triaged.
-    // , this is just a dry run. See https://rust-lang.zulipchat.com/#narrow/stream/242269-t-release.2Ftriage/topic/auto-close.20E-needs-mcve
 
     for issue in &issues_to_close {
         println!(
@@ -59,7 +58,7 @@ fn filter_last_comment_age(
     if last_comment_age > minimum_age {
         true
     } else {
-        println!(
+        debug!(
             "{} commented less than {} months ago, namely {} months ago. No action.",
             issue.url.0,
             minimum_age.num_days() / 30,
@@ -67,6 +66,15 @@ fn filter_last_comment_age(
         );
         false
     }
+}
+
+fn filter_excluded_labels(issue: &OldLabelCandidateIssue, exclude_labels_containing: &str) -> bool {
+    issue.labels.as_ref().unwrap().nodes.iter().any(|label| {
+        label
+            .name
+            .to_lowercase()
+            .contains(exclude_labels_containing)
+    })
 }
 
 fn filter_label_age(
@@ -88,7 +96,7 @@ fn filter_label_age(
     if label_age > minimum_age {
         true
     } else {
-        println!(
+        debug!(
             "{} labeled {} less than {} months ago, namely {} months ago. No action.",
             issue.url.0,
             label,
@@ -141,7 +149,13 @@ pub async fn issues_with_label(
         after: None,
     };
 
+    let mut max_iterations_left = 100;
     loop {
+        max_iterations_left -= 1;
+        if max_iterations_left == 0 {
+            anyhow::bail!("Bailing to avoid rate limit depletion. This is a sanity check.");
+        }
+
         let query = OldLabelIssuesQuery::build(args.clone());
         let req = client.post(Repository::GITHUB_GRAPHQL_API_URL);
         let req = req.json(&query);

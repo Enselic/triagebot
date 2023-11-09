@@ -14,7 +14,8 @@ async fn main() -> anyhow::Result<()> {
         "rust-lang",
         "rust",
         "E-needs-mcve",
-        chrono::Duration::days(30 * 12 * 3), // FIXME: Change to 4 years when we stop dry run
+        "triaged", // Exclude e.g. AsyncAwait-Triaged
+        chrono::Duration::days(30 * 12 * 4),
         &client,
     )
     .await;
