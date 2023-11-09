@@ -14,10 +14,10 @@ async fn main() -> anyhow::Result<()> {
         "rust-lang",
         "rust",
         "E-needs-mcve",
-        chrono::Duration::days(30 * 12 * 4), // 3 years
+        chrono::Duration::days(30 * 12 * 3), // FIXME: Change to 4 years when we stop dry run
         &client,
     )
-    .await?;
+    .await;
 
     Ok(())
 }

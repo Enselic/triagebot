@@ -50,7 +50,7 @@ pub mod queries {
     pub struct OldLabelRepository {
         #[arguments(
             states: "OPEN",
-            first: 30,
+            first: 25,
             after: $after,
             labels: [$label],
             orderBy: {direction: "ASC", field: "CREATED_AT"}
@@ -70,7 +70,7 @@ pub mod queries {
         pub labels: Option<LabelConnection>,
         #[arguments(last = 1)]
         pub comments: IssueCommentConnection,
-        #[arguments(last = 250, itemTypes = Some(vec![IssueTimelineItemsItemType::LabeledEvent, IssueTimelineItemsItemType::UnlabeledEvent]))]
+        #[arguments(last = 250, itemTypes = Some(vec![IssueTimelineItemsItemType::LabeledEvent]))]
         pub timeline_items: Option<IssueTimelineItemsConnection>,
     }
 
@@ -88,7 +88,6 @@ pub mod queries {
     #[derive(cynic::InlineFragments, Debug)]
     pub enum IssueTimelineItems {
         LabeledEvent(LabeledEvent),
-        UnlabelledEvent(UnlabeledEvent),
         #[cynic(fallback)]
         Other,
     }
@@ -136,12 +135,6 @@ pub mod queries {
         pub page_info: PageInfo,
         #[cynic(flatten)]
         pub nodes: Vec<IssueTimelineItems>,
-    }
-
-    #[derive(cynic::QueryFragment, Debug)]
-    pub struct UnlabeledEvent {
-        pub label: Label,
-        pub created_at: DateTime,
     }
 
     #[derive(cynic::QueryFragment, Debug)]

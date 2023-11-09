@@ -11,17 +11,28 @@ pub async fn triage_old_label(
     label: &str,
     minimum_age: Duration,
     client: &GithubClient,
-) -> anyhow::Result<Vec<OldLabelCandidateIssue>> {
+) {
     let now = chrono::Utc::now();
 
-    let candidates = issues_with_label(repository_owner, repository_name, label, client)
-        .await?
+    let issues_to_close = issues_with_label(repository_owner, repository_name, label, client)
+        .await
+        .unwrap()
         .into_iter()
         .filter(|issue| filter_last_comment_age(issue, minimum_age, &now))
         .filter(|issue| filter_label_age(issue, label, minimum_age, &now))
         .collect::<Vec<_>>();
 
-    Ok(vec![])
+    // TODO: have no label that contains the word "triaged", e.g. AsyncAwait-Triaged.
+    // , this is just a dry run. See https://rust-lang.zulipchat.com/#narrow/stream/242269-t-release.2Ftriage/topic/auto-close.20E-needs-mcve
+
+    for issue in &issues_to_close {
+        println!(
+            "{} will be closed. TODO: Actually implement closing",
+            issue.url.0
+        );
+        // FIXME: Actually close the issue
+        // FIXME: Report the close to a Zulip topic called "triagebot closed issues" in the "t-release/triage" stream
+    }
 }
 
 /// If an issue is actively discussed, there is no limit on the age of the
